@@ -40,8 +40,11 @@ describe('seat management', () => {
     const a = newClient(); await hello(a, 'Alice');
     const created = await emitp(a, 'create-room', {});
     const b = newClient(); await hello(b, 'Bob');
-    const seatsPromise = new Promise<any>((resolve) => b.on('seats-updated', resolve));
     await emitp(b, 'join-room', { roomCode: created.roomCode });
+    // listen AFTER join-room so we capture the take-seat broadcast, not the join-room broadcast
+    const seatsPromise = new Promise<any>((resolve) => {
+      b.on('seats-updated', (ev) => { if (ev.seats[1]?.playerId) resolve(ev); });
+    });
     const r = await emitp(b, 'take-seat', { seat: 1 });
     expect(r.ok).toBe(true);
     const ev = await seatsPromise;

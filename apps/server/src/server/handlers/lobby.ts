@@ -88,8 +88,16 @@ export function handleJoinRoom(
   const data = socket.data as SocketData;
   data.matchId = room.matchId;
   socket.join(room.matchId);
-  // Find existing seat for this playerId (e.g. reconnecting).
-  const mySeat = room.seats.find((s) => s.playerId === data.playerId)?.seat ?? null;
+  // Find existing seat for this playerId (e.g. reconnecting) and mark connected.
+  let mySeat: number | null = null;
+  for (const s of room.seats) {
+    if (s.playerId === data.playerId) {
+      s.connected = true;
+      s.socketId = socket.id;
+      s.disconnectedAt = null;
+      mySeat = s.seat;
+    }
+  }
   return roomSnapshot(room, mySeat);
 }
 

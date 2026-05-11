@@ -5,6 +5,7 @@ import { handleHello } from './handlers/hello.js';
 import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broadcastSeats, handleReady, tryStartMatch } from './handlers/lobby.js';
 import { handleAction } from './handlers/action.js';
 import { handleClaimIntercept } from './handlers/intercept.js';
+import { handleDisconnect } from './handlers/disconnect.js';
 import { RoomRegistry } from '../lifecycle/room.js';
 import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload, ClaimInterceptPayload } from './wire.js';
 import type { SocketData } from '@kozel/shared';
@@ -63,7 +64,12 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
       const parsed = JoinRoomPayload.safeParse(raw);
       if (!parsed.success) return cb({ error: 'invalid-payload' });
       if (!data.playerId) return cb({ error: 'not-authed' });
-      cb(handleJoinRoom(db, registry, socket, parsed.data));
+      const result = handleJoinRoom(db, registry, socket, parsed.data);
+      cb(result);
+      if ('roomCode' in result) {
+        const room = registry.byMatchId(data.matchId!);
+        if (room) broadcastSeats(io, room);
+      }
     });
 
     socket.on('take-seat', (raw, cb: (resp: any) => void) => {
@@ -118,6 +124,10 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
       if (!parsed.success) return cb({ error: 'invalid-payload' });
       if (!data.playerId) return cb({ error: 'not-authed' });
       cb(handleClaimIntercept(db, registry, io, socket));
+    });
+
+    socket.on('disconnect', () => {
+      handleDisconnect(registry, io, socket);
     });
   });
 
