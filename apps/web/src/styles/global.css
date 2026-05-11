@@ -1,0 +1,13 @@
+:root {
+  --bg: #0e3b2e;
+  --bg-light: #145441;
+  --fg: #f1f3f0;
+  --fg-dim: #aab2a8;
+  --accent: #f3b73a;
+  --danger: #d54138;
+  --card-bg: #fdfdfb;
+  --card-fg: #16201d;
+  --card-red: #c52e28;
+}
+body { background: var(--bg); color: var(--fg); }
+#root { display: flex; flex-direction: column; height: 100dvh; }
