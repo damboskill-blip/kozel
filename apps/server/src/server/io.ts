@@ -90,7 +90,7 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
       }
     });
 
-    socket.on('ready', (raw, cb: (resp: any) => void) => {
+    socket.on('ready', async (raw, cb: (resp: any) => void) => {
       const parsed = ReadyPayload.safeParse(raw);
       if (!parsed.success) return cb({ error: 'invalid-payload' });
       if (!data.playerId) return cb({ error: 'not-authed' });
@@ -100,7 +100,7 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
         const room = registry.byMatchId(data.matchId!);
         if (room) {
           broadcastSeats(io, room);
-          tryStartMatch(db, io, room);
+          await tryStartMatch(db, io, room);
         }
       }
     });

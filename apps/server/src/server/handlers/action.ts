@@ -36,5 +36,13 @@ export async function handleAction(
     const { maybeOpenInterceptWindow } = await import('./intercept.js');
     maybeOpenInterceptWindow(db, io, room);
   }
+
+  // intercept handled above; for all other cases reschedule turn timer.
+  if (room.state.phase.kind !== 'intercept-window') {
+    const { scheduleTurnTimer } = await import('../../lifecycle/auto-turn.js');
+    scheduleTurnTimer(db, io, room, (rr) => {
+      broadcastStatePerSeat(io, rr);
+    });
+  }
   return { ok: true };
 }

@@ -173,9 +173,9 @@ export function handleReady(
   return { ok: true };
 }
 
-export function tryStartMatch(
+export async function tryStartMatch(
   db: DB, io: import('socket.io').Server, room: Room,
-): boolean {
+): Promise<boolean> {
   if (room.status !== 'lobby') return false;
   const seated = room.seats.every((s) => s.playerId !== null && s.ready);
   if (!seated) return false;
@@ -214,5 +214,8 @@ export function tryStartMatch(
     io.to(s.socketId).emit('state-update', { state: projected });
   }
   io.to(room.matchId).emit('ephemeral', { events: r.events });
+  const { scheduleTurnTimer } = await import('../../lifecycle/auto-turn.js');
+  const { broadcastStatePerSeat } = await import('../broadcast.js');
+  scheduleTurnTimer(db, io, room, (rr) => broadcastStatePerSeat(io, rr));
   return true;
 }
