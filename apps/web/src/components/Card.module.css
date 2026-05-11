@@ -1,0 +1,11 @@
+.card { width: 56px; height: 80px; border-radius: 6px; background: var(--card-bg); color: var(--card-fg);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  padding: 4px 6px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,.25); user-select: none; }
+.red { color: var(--card-red); }
+.rank { font-size: 18px; line-height: 1; align-self: stretch; }
+.suit { font-size: 28px; line-height: 1; }
+.rankBottom { align-self: flex-end; transform: rotate(180deg); font-size: 18px; }
+.joker { color: var(--accent); font-size: 30px; align-self: center; }
+.back { background: repeating-linear-gradient(45deg, #2a5b48, #2a5b48 6px, #1e4a3b 6px, #1e4a3b 12px); }
+.selected { transform: translateY(-12px); box-shadow: 0 6px 12px rgba(0,0,0,.4); }
+.clickable { cursor: pointer; }
