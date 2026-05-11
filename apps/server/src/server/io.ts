@@ -12,6 +12,31 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
   const io = new IoServer(app.server, { cors: { origin: true } });
   const registry = new RoomRegistry();
 
+  // Eager-load active matches into the in-memory registry.
+  {
+    const { listActiveMatches, getSeats } = await import('../db/repo-matches.js');
+    const { findPlayerById } = await import('../db/repo-players.js');
+    const { emptySeats } = await import('../lifecycle/room.js');
+    for (const m of listActiveMatches(db)) {
+      const seats = emptySeats();
+      for (const s of getSeats(db, m.id)) {
+        if (s.player_id) {
+          const p = findPlayerById(db, s.player_id);
+          seats[s.seat] = {
+            seat: s.seat as 0 | 1 | 2 | 3,
+            playerId: s.player_id, name: p?.name ?? null,
+            connected: false, ready: !!s.ready,
+            socketId: null, disconnectedAt: Date.now(),
+          };
+        }
+      }
+      registry.register({
+        matchId: m.id, roomCode: m.roomCode, state: m.state, status: m.status,
+        seats, turnTimer: null, interceptTimer: null,
+      });
+    }
+  }
+
   io.on('connection', (socket: Socket) => {
     const data = socket.data as SocketData;
     data.matchId = null;
