@@ -1,8 +1,14 @@
-.hand { display: flex; gap: -16px; padding: 12px; overflow-x: auto; }
-.hand > * { margin-right: -16px; }
+.hand {
+  display: flex;
+  padding: 18px 8px 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  align-items: flex-end;
+  min-height: 130px;
+}
+.hand > * { margin-right: -34px; scroll-snap-align: center; }
 .hand > *:last-child { margin-right: 0; }
 
-@media (max-width: 480px) {
-  .hand { gap: -24px; }
-  .hand > * { margin-right: -24px; }
+@media (max-width: 380px) {
+  .hand > * { margin-right: -42px; }
 }

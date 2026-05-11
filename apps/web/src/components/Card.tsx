@@ -8,17 +8,19 @@ export type CardProps = {
   card: CardLike;
   selected?: boolean;
   onClick?: () => void;
+  size?: 'normal' | 'small';
 };
 
-export function Card({ card, selected = false, onClick }: CardProps): JSX.Element {
+export function Card({ card, selected = false, onClick, size = 'normal' }: CardProps): JSX.Element {
+  const sizeClass = size === 'small' ? styles.small : '';
   if (card.kind === 'hidden') {
-    return <div data-testid="card-hidden" className={`${styles.card} ${styles.back}`} />;
+    return <div data-testid="card-hidden" className={`${styles.card} ${styles.back} ${sizeClass}`} />;
   }
   if (card.kind === 'joker') {
     return (
       <div
         data-testid={`card-${card.id}`}
-        className={`${styles.card} ${onClick ? styles.clickable : ''} ${selected ? styles.selected : ''}`}
+        className={`${styles.card} ${sizeClass} ${onClick ? styles.clickable : ''} ${selected ? styles.selected : ''}`}
         onClick={onClick}
       >
         <span className={styles.joker}>★</span>
@@ -29,7 +31,7 @@ export function Card({ card, selected = false, onClick }: CardProps): JSX.Elemen
   return (
     <div
       data-testid={`card-${card.id}`}
-      className={`${styles.card} ${red ? styles.red : ''} ${onClick ? styles.clickable : ''} ${selected ? styles.selected : ''}`}
+      className={`${styles.card} ${sizeClass} ${red ? styles.red : ''} ${onClick ? styles.clickable : ''} ${selected ? styles.selected : ''}`}
       onClick={onClick}
     >
       <span className={styles.rank}>{card.rank}</span>
