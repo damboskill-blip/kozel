@@ -1,0 +1,51 @@
+export const ru = {
+  app: { title: 'Козёл' },
+  identity: {
+    namePlaceholder: 'Как тебя зовут?',
+    enter: 'Войти',
+  },
+  lobby: {
+    createRoom: 'Создать стол',
+    joinRoom: 'Зайти за стол',
+    roomCodePlaceholder: 'Код стола',
+    invalidCode: 'Неверный код',
+  },
+  roomLobby: {
+    waiting: 'Ожидаем игроков…',
+    sitDown: 'Сесть',
+    leave: 'Встать',
+    ready: 'Готов',
+    notReady: 'Жду',
+    roomCode: 'Код стола:',
+  },
+  table: {
+    yourTurn: 'Твой ход',
+    waitingFor: 'Ходит',
+    pass: 'Пас',
+    beat: 'Бить',
+    skid: 'Сбросить',
+    intercept: '⚡ Перехват',
+    interceptCountdown: 'сек',
+    extraRoundAsk: 'Будешь бить?',
+    trump: 'Козырь',
+    noTrump: 'Без козыря',
+    stockEmpty: 'Колода пуста',
+    sdacha: 'Сдача',
+    matchScore: 'Партия',
+    sdachaScore: 'Сдача',
+    teamA: 'Север-Юг',
+    teamB: 'Запад-Восток',
+  },
+  chat: {
+    placeholder: 'Сообщение…',
+    send: 'Отправить',
+    throttled: 'Слишком быстро',
+  },
+  error: {
+    connectionLost: 'Связь потеряна. Переподключение…',
+    roomNotFound: 'Стол не найден',
+    seatTaken: 'Место занято',
+    full: 'Стол заполнен',
+  },
+};
+export type I18n = typeof ru;
