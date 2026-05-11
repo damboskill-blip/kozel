@@ -1,0 +1,5 @@
+.seat { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; min-width: 80px; }
+.name { font-size: 13px; font-weight: 600; }
+.count { font-size: 12px; color: var(--fg-dim); }
+.disconnected { color: var(--danger); }
+.active { outline: 2px solid var(--accent); border-radius: 6px; }
