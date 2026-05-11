@@ -44,9 +44,9 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 ENV NODE_ENV=production
 ENV PORT=8080
-ENV DB_PATH=/data/kozel.db
+ENV DB_PATH=/tmp/kozel.db
 
 EXPOSE 8080
 
 WORKDIR /app/apps/server
-CMD ["sh", "-c", "mkdir -p /data && pnpm start"]
+CMD ["pnpm", "start"]
