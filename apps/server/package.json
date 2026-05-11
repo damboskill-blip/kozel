@@ -12,6 +12,7 @@
     "start": "node dist/server/index.js"
   },
   "dependencies": {
+    "@fastify/static": "^7",
     "@kozel/shared": "workspace:*",
     "better-sqlite3": "^11.3.0",
     "fastify": "^4.28.0",
