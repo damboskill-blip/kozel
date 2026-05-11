@@ -1,0 +1,14 @@
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+apps/*/dist
+packages/*/dist
+apps/server/kozel.db*
+*.tsbuildinfo
+.git
+docs
+.claude
+.vscode
+.idea
+coverage
+*.log
