@@ -13,8 +13,8 @@ export function PlayedTrick({ trick }: PlayedTrickProps): JSX.Element | null {
   return (
     <div className={styles.trick} data-testid="trick">
       {trick.played.map((p, i) => (
-        <div key={i} className={styles.row} data-testid={`played-seat-${p.seat}`}>
-          <span className={styles.label}>{SEAT_LABEL[p.seat]}</span>
+        <div key={i} className={styles.row} data-testid={`played-seat-${p.by}`}>
+          <span className={styles.label}>{SEAT_LABEL[p.by]}</span>
           {p.cards.map((c, j) => (
             <Card key={j} card={c as any} />
           ))}

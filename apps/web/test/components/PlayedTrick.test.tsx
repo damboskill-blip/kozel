@@ -6,8 +6,8 @@ const trick = {
   leader: 0,
   leadCount: 1,
   played: [
-    { seat: 0, faceDown: false, cards: [{ kind: 'normal', rank: 'A', suit: 'hearts', id: 'A-hearts' }] },
-    { seat: 1, faceDown: true, cards: [{ kind: 'hidden' }] },
+    { by: 0, faceDown: false, cards: [{ kind: 'normal', rank: 'A', suit: 'hearts', id: 'A-hearts' }] },
+    { by: 1, faceDown: true, cards: [{ kind: 'hidden' }] },
   ],
 } as any;
 
