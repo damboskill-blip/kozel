@@ -4,6 +4,7 @@ import type {
 import { freshGameState } from './deal.js';
 import { pickCardsByIds, removeCardsFromHand, isAllInHand } from './helpers.js';
 import { classifyLead, isPairingValid } from './validate.js';
+import { nextToAskOrNull } from './extra-round.js';
 
 function nextSeat(s: SeatIndex): SeatIndex {
   return ((s + 1) % 4) as SeatIndex;
@@ -169,6 +170,83 @@ export function engine(state: GameState, action: Action): EngineResult {
           currentTrick: newTrick,
           phase: { kind: 'follow', next: nextSeat(action.by) },
           log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: false }],
+        },
+        events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
+      };
+    }
+
+    case 'extra-pass': {
+      if (state.phase.kind !== 'extra-round') return { ok: false, error: 'invalid-action-for-phase' };
+      const trick = state.currentTrick!;
+      if (trick.extraRound!.nextToAsk !== action.by) return { ok: false, error: 'not-your-turn' };
+
+      const newAsked = [...trick.extraRound!.asked, action.by];
+      const allAsked = newAsked.length === 3;
+
+      if (allAsked) {
+        return {
+          ok: true,
+          state: {
+            ...state,
+            currentTrick: { ...trick, extraRound: { asked: newAsked, nextToAsk: action.by } },
+            phase: { kind: 'between-tricks' },
+            log: [...state.log, { kind: 'extra-pass', by: action.by }],
+          },
+          events: [],
+        };
+      }
+
+      const topSeat = trick.played[trick.topIndex]!.by;
+      let s: SeatIndex = nextSeat(action.by);
+      while (newAsked.includes(s) || s === topSeat) {
+        s = nextSeat(s);
+      }
+      return {
+        ok: true,
+        state: {
+          ...state,
+          currentTrick: { ...trick, extraRound: { asked: newAsked, nextToAsk: s } },
+          log: [...state.log, { kind: 'extra-pass', by: action.by }],
+        },
+        events: [],
+      };
+    }
+
+    case 'extra-beat': {
+      if (state.phase.kind !== 'extra-round') return { ok: false, error: 'invalid-action-for-phase' };
+      const trick = state.currentTrick!;
+      const actualNextToAsk = nextToAskOrNull(trick);
+      if (actualNextToAsk !== action.by) return { ok: false, error: 'not-your-turn' };
+      if (trick.lockedFromBeating.includes(action.by)) return { ok: false, error: 'locked-from-beating' };
+      if (action.cardIds.length !== trick.leadCount) return { ok: false, error: 'wrong-card-count' };
+
+      const hand = state.hands[action.by]!;
+      if (!isAllInHand(hand, action.cardIds)) return { ok: false, error: 'cards-not-in-hand' };
+      const cards = pickCardsByIds(hand, action.cardIds)!;
+
+      const top = trick.played[trick.topIndex]!.cards;
+      if (!isPairingValid(cards, top, state.trump)) {
+        return { ok: false, error: cards.length === 1 ? 'cannot-beat' : 'invalid-pairing' };
+      }
+
+      const newPlayed = [...trick.played, { by: action.by, cards, faceDown: false }];
+      const newTopIndex = newPlayed.length - 1;
+      const newHands = state.hands.map((h, i) =>
+        i === action.by ? removeCardsFromHand(h, action.cardIds) : h,
+      );
+      const newTopSeat = action.by;
+      return {
+        ok: true,
+        state: {
+          ...state,
+          hands: newHands,
+          currentTrick: {
+            ...trick,
+            played: newPlayed,
+            topIndex: newTopIndex,
+            extraRound: { asked: [], nextToAsk: nextSeat(newTopSeat) },
+          },
+          log: [...state.log, { kind: 'extra-beat', by: action.by, cards }],
         },
         events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
       };
