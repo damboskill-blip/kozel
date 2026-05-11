@@ -4,8 +4,9 @@ import type { DB } from '../db/index.js';
 import { handleHello } from './handlers/hello.js';
 import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broadcastSeats, handleReady, tryStartMatch } from './handlers/lobby.js';
 import { handleAction } from './handlers/action.js';
+import { handleClaimIntercept } from './handlers/intercept.js';
 import { RoomRegistry } from '../lifecycle/room.js';
-import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload } from './wire.js';
+import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload, ClaimInterceptPayload } from './wire.js';
 import type { SocketData } from '@kozel/shared';
 
 export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
@@ -104,12 +105,19 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
       }
     });
 
-    socket.on('action', (raw, cb: (resp: any) => void) => {
+    socket.on('action', async (raw, cb: (resp: any) => void) => {
       const parsed = ActionPayload.safeParse(raw);
       if (!parsed.success) return cb({ error: 'invalid-payload' });
       if (!data.playerId) return cb({ error: 'not-authed' });
-      const r = handleAction(db, registry, io, socket, parsed.data as any);
+      const r = await handleAction(db, registry, io, socket, parsed.data as any);
       cb(r);
+    });
+
+    socket.on('claim-intercept', (raw, cb: (resp: any) => void) => {
+      const parsed = ClaimInterceptPayload.safeParse(raw);
+      if (!parsed.success) return cb({ error: 'invalid-payload' });
+      if (!data.playerId) return cb({ error: 'not-authed' });
+      cb(handleClaimIntercept(db, registry, io, socket));
     });
   });
 

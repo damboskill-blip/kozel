@@ -6,9 +6,9 @@ import { appendMatchEvent, updateMatchState } from '../../db/repo-matches.js';
 import { broadcastEphemeral, broadcastStatePerSeat } from '../broadcast.js';
 import type { Action, SocketData } from '@kozel/shared';
 
-export function handleAction(
+export async function handleAction(
   db: DB, registry: RoomRegistry, io: IoServer, socket: Socket, action: Action,
-): { ok: true } | { error: string } {
+): Promise<{ ok: true } | { error: string }> {
   const data = socket.data as SocketData;
   if (!data.matchId) return { error: 'not-in-room' };
   const room = registry.byMatchId(data.matchId);
@@ -31,5 +31,10 @@ export function handleAction(
   broadcastStatePerSeat(io, room);
   broadcastEphemeral(io, room, r.events);
 
+  // If engine moved us into intercept-window, open the 3s timer.
+  if (room.state.phase.kind === 'intercept-window') {
+    const { maybeOpenInterceptWindow } = await import('./intercept.js');
+    maybeOpenInterceptWindow(db, io, room);
+  }
   return { ok: true };
 }
