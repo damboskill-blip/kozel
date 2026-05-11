@@ -16,6 +16,7 @@ export type RoomState = {
   setReady: (ready: boolean) => Promise<{ ok: true } | { error: string }>;
   sendAction: (action: Action) => Promise<{ ok: true } | { error: string }>;
   claimIntercept: () => Promise<{ ok: true } | { error: string }>;
+  addBot: () => Promise<{ ok: true } | { error: string }>;
 };
 
 const Ctx = createContext<RoomState | null>(null);
@@ -117,10 +118,16 @@ export function RoomProvider({ children }: { children: ReactNode }): JSX.Element
     });
   }, [socket]);
 
+  const addBot = useCallback(async () => {
+    return new Promise<{ ok: true } | { error: string }>((resolve) => {
+      socket.emit('add-bot', {}, resolve);
+    });
+  }, [socket]);
+
   return (
     <Ctx.Provider value={{
       ...snapshot,
-      createRoom, joinRoom, takeSeat, leaveSeat, setReady, sendAction, claimIntercept,
+      createRoom, joinRoom, takeSeat, leaveSeat, setReady, sendAction, claimIntercept, addBot,
     }}>
       {children}
     </Ctx.Provider>

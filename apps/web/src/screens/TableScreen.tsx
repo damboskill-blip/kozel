@@ -29,7 +29,7 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
   const opponentBySlot = useMemo(() => {
     // Offsets clockwise from mySeat: 1 = right, 2 = top (partner), 3 = left.
     const buildSlot = (offset: 1 | 2 | 3): {
-      seat: SeatIndex; name: string | null; connected: boolean; count: number;
+      seat: SeatIndex; name: string | null; connected: boolean; count: number; isBot: boolean;
     } => {
       const i = ((mySeat + offset) % 4) as SeatIndex;
       const h = state.hands[i];
@@ -40,6 +40,7 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
         name: presence?.name ?? null,
         connected: presence?.connected ?? false,
         count,
+        isBot: presence?.isBot ?? false,
       };
     };
     return { right: buildSlot(1), top: buildSlot(2), left: buildSlot(3) };
@@ -90,6 +91,7 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
           <SeatPanel
             name={opponentBySlot.top.name}
             connected={opponentBySlot.top.connected}
+            isBot={opponentBySlot.top.isBot}
             cardCount={opponentBySlot.top.count}
             active={isActiveSeat(opponentBySlot.top.seat)}
           />
@@ -98,6 +100,7 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
           <SeatPanel
             name={opponentBySlot.left.name}
             connected={opponentBySlot.left.connected}
+            isBot={opponentBySlot.left.isBot}
             cardCount={opponentBySlot.left.count}
             active={isActiveSeat(opponentBySlot.left.seat)}
           />
@@ -113,6 +116,7 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
           <SeatPanel
             name={opponentBySlot.right.name}
             connected={opponentBySlot.right.connected}
+            isBot={opponentBySlot.right.isBot}
             cardCount={opponentBySlot.right.count}
             active={isActiveSeat(opponentBySlot.right.seat)}
           />

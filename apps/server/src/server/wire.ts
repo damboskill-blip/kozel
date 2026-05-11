@@ -27,6 +27,8 @@ export const ChatPayload = z.object({
 
 export const ClaimInterceptPayload = z.object({});
 
+export const AddBotPayload = z.object({});
+
 // `action` payload — discriminated union mirroring Action type. We validate kind+shape lightly;
 // engine itself is authoritative.
 export const ActionPayload = z.union([

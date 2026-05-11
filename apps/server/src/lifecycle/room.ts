@@ -20,6 +20,7 @@ export type SeatPresenceInternal = {
   ready: boolean;
   socketId: string | null;
   disconnectedAt: number | null;
+  isBot: boolean;
 };
 
 export type Room = {
@@ -58,6 +59,6 @@ export class RoomRegistry {
 export function emptySeats(): SeatPresenceInternal[] {
   return [0, 1, 2, 3].map((s) => ({
     seat: s as SeatIndex, playerId: null, name: null, connected: false,
-    ready: false, socketId: null, disconnectedAt: null,
+    ready: false, socketId: null, disconnectedAt: null, isBot: false,
   }));
 }

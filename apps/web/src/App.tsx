@@ -66,6 +66,7 @@ function Shell(): JSX.Element {
         onSit={(seat) => void room.takeSeat(seat)}
         onLeave={() => void room.leaveSeat()}
         onReady={(r) => void room.setReady(r)}
+        onAddBot={() => void room.addBot()}
       />
     );
   }
@@ -78,6 +79,7 @@ function Shell(): JSX.Element {
         onSit={(seat) => void room.takeSeat(seat)}
         onLeave={() => void room.leaveSeat()}
         onReady={(r) => void room.setReady(r)}
+        onAddBot={() => void room.addBot()}
       />
     );
   }

@@ -18,6 +18,7 @@ export type SeatPresence = {
   name: string | null;
   connected: boolean;
   ready: boolean;
+  isBot?: boolean;
 };
 
 export type RoomSnapshot = {
@@ -62,6 +63,10 @@ export type ClientToServerEvents = {
   ) => void;
   chat: (
     payload: { text: string },
+    cb: (resp: { ok: true } | { error: string }) => void,
+  ) => void;
+  'add-bot': (
+    payload: {},
     cb: (resp: { ok: true } | { error: string }) => void,
   ) => void;
 };

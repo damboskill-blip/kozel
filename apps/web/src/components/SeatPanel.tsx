@@ -6,12 +6,14 @@ export type SeatPanelProps = {
   connected: boolean;
   cardCount: number;
   active?: boolean;
+  isBot?: boolean;
 };
 
-export function SeatPanel({ name, connected, cardCount, active = false }: SeatPanelProps): JSX.Element {
+export function SeatPanel({ name, connected, cardCount, active = false, isBot = false }: SeatPanelProps): JSX.Element {
+  const showDisconnected = !connected && !isBot;
   return (
     <div className={`${styles.seat} ${active ? styles.active : ''}`} data-testid="seat-panel">
-      <div className={`${styles.name} ${connected ? '' : styles.disconnected}`}>{name ?? '—'}</div>
+      <div className={`${styles.name} ${showDisconnected ? styles.disconnected : ''}`}>{name ?? '—'}</div>
       <div style={{ display: 'flex', gap: '-30px' }}>
         {Array.from({ length: Math.min(cardCount, 6) }, (_, i) => (
           <Card key={i} card={{ kind: 'hidden' } as any} />

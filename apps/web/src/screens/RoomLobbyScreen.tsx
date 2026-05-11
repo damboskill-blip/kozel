@@ -9,6 +9,7 @@ export type RoomLobbyScreenProps = {
   onSit: (seat: SeatIndex) => void;
   onLeave: () => void;
   onReady: (ready: boolean) => void;
+  onAddBot?: () => void;
 };
 
 type Team = { label: string; seats: [SeatIndex, SeatIndex] };
@@ -17,10 +18,11 @@ const TEAMS: Team[] = [
   { label: 'Команда 2', seats: [1, 3] },
 ];
 
-export function RoomLobbyScreen({ roomCode, seats, mySeat, onSit, onLeave, onReady }: RoomLobbyScreenProps): JSX.Element {
+export function RoomLobbyScreen({ roomCode, seats, mySeat, onSit, onLeave, onReady, onAddBot }: RoomLobbyScreenProps): JSX.Element {
   const myReady = mySeat !== null ? seats.find((s) => s.seat === mySeat)?.ready ?? false : false;
   const seatedByIndex: Record<number, SeatPresence | undefined> = {};
   for (const s of seats) seatedByIndex[s.seat] = s;
+  const hasEmptySeat = seats.some((s) => !s.playerId);
 
   const findEmptySeatInTeam = (team: Team): SeatIndex | null => {
     for (const seat of team.seats) {
@@ -69,6 +71,13 @@ export function RoomLobbyScreen({ roomCode, seats, mySeat, onSit, onLeave, onRea
             {myReady ? 'Жду' : ru.roomLobby.ready}
           </button>
         </div>
+      )}
+      {onAddBot && hasEmptySeat && (
+        <button
+          className={`${styles.button} ${styles.secondary}`}
+          onClick={onAddBot}
+          data-testid="add-bot"
+        >🤖 Добавить бота</button>
       )}
     </div>
   );

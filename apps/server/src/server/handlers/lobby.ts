@@ -10,7 +10,7 @@ import type { RoomSnapshot, SeatPresence, SeatIndex, SocketData } from '@kozel/s
 function roomSnapshot(room: Room, mySeat: number | null): RoomSnapshot {
   const seats: SeatPresence[] = room.seats.map((s) => ({
     seat: s.seat, playerId: s.playerId, name: s.name,
-    connected: s.connected, ready: s.ready,
+    connected: s.connected, ready: s.ready, isBot: s.isBot,
   }));
   const state = mySeat !== null && room.status === 'playing'
     ? projectStateForSeat(room.state, mySeat as SeatIndex)
@@ -106,12 +106,12 @@ export function handleJoinRoom(
 }
 
 import { setSeatPlayer } from '../../db/repo-matches.js';
-import { findPlayerById } from '../../db/repo-players.js';
+import { findPlayerById, createPlayer } from '../../db/repo-players.js';
 
 export function broadcastSeats(io: import('socket.io').Server, room: Room): void {
   const seats: SeatPresence[] = room.seats.map((s) => ({
     seat: s.seat, playerId: s.playerId, name: s.name,
-    connected: s.connected, ready: s.ready,
+    connected: s.connected, ready: s.ready, isBot: s.isBot,
   }));
   io.to(room.matchId).emit('seats-updated', { seats });
 }
@@ -143,6 +143,36 @@ export function handleTakeSeat(
   target.ready = false;
   target.socketId = socket.id;
   setSeatPlayer(db, room.matchId, seat, data.playerId);
+  return { ok: true };
+}
+
+const BOT_NAMES = ['🤖 Жора', '🤖 Витёк', '🤖 Колян', '🤖 Васян'];
+
+export function handleAddBot(
+  db: DB, registry: RoomRegistry, socket: Socket,
+): { ok: true } | { error: string } {
+  const data = socket.data as SocketData;
+  if (!data.matchId) return { error: 'not-in-room' };
+  const room = registry.byMatchId(data.matchId);
+  if (!room) return { error: 'not-in-room' };
+  if (room.status !== 'lobby') return { error: 'match-already-started' };
+
+  const emptySeat = room.seats.find((s) => !s.playerId);
+  if (!emptySeat) return { error: 'room-full' };
+
+  const usedNames = new Set(room.seats.map((s) => s.name).filter(Boolean));
+  const availableName = BOT_NAMES.find((n) => !usedNames.has(n)) ?? `🤖 Бот ${emptySeat.seat + 1}`;
+
+  const bot = createPlayer(db, availableName);
+  emptySeat.playerId = bot.id;
+  emptySeat.name = availableName;
+  emptySeat.connected = false;
+  emptySeat.ready = true;
+  emptySeat.socketId = null;
+  emptySeat.disconnectedAt = null;
+  emptySeat.isBot = true;
+  setSeatPlayer(db, room.matchId, emptySeat.seat, bot.id);
+  setSeatReady(db, room.matchId, emptySeat.seat, true);
   return { ok: true };
 }
 

@@ -2,13 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { Server as IoServer, type Socket } from 'socket.io';
 import type { DB } from '../db/index.js';
 import { handleHello } from './handlers/hello.js';
-import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broadcastSeats, handleReady, tryStartMatch } from './handlers/lobby.js';
+import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broadcastSeats, handleReady, handleAddBot, tryStartMatch } from './handlers/lobby.js';
 import { handleAction } from './handlers/action.js';
 import { handleClaimIntercept } from './handlers/intercept.js';
 import { handleDisconnect } from './handlers/disconnect.js';
 import { handleChat } from './handlers/chat.js';
 import { RoomRegistry } from '../lifecycle/room.js';
-import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload, ClaimInterceptPayload, ChatPayload } from './wire.js';
+import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload, ClaimInterceptPayload, ChatPayload, AddBotPayload } from './wire.js';
 import type { SocketData } from '@kozel/shared';
 
 export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
@@ -30,6 +30,7 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
             playerId: s.player_id, name: p?.name ?? null,
             connected: false, ready: !!s.ready,
             socketId: null, disconnectedAt: Date.now(),
+            isBot: (p?.name ?? '').startsWith('🤖'),
           };
         }
       }
@@ -132,6 +133,21 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
       if (!parsed.success) return cb({ error: 'too-long' });
       if (!data.playerId) return cb({ error: 'not-authed' });
       cb(handleChat(db, registry, io, socket, parsed.data.text));
+    });
+
+    socket.on('add-bot', async (raw, cb: (resp: any) => void) => {
+      const parsed = AddBotPayload.safeParse(raw);
+      if (!parsed.success) return cb({ error: 'invalid-payload' });
+      if (!data.playerId) return cb({ error: 'not-authed' });
+      const r = handleAddBot(db, registry, socket);
+      cb(r);
+      if ('ok' in r) {
+        const room = registry.byMatchId(data.matchId!);
+        if (room) {
+          broadcastSeats(io, room);
+          await tryStartMatch(db, io, room);
+        }
+      }
     });
 
     socket.on('disconnect', () => {
