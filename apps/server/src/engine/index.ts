@@ -3,7 +3,7 @@ import type {
 } from '@kozel/shared';
 import { freshGameState } from './deal.js';
 import { pickCardsByIds, removeCardsFromHand, isAllInHand } from './helpers.js';
-import { classifyLead } from './validate.js';
+import { classifyLead, isPairingValid } from './validate.js';
 
 function nextSeat(s: SeatIndex): SeatIndex {
   return ((s + 1) % 4) as SeatIndex;
@@ -83,25 +83,66 @@ export function engine(state: GameState, action: Action): EngineResult {
       if (!isAllInHand(hand, action.cardIds)) return { ok: false, error: 'cards-not-in-hand' };
       const cards = pickCardsByIds(hand, action.cardIds)!;
 
-      if (!action.faceDown) {
-        // Beat path implemented in Task 10.
-        return { ok: false, error: 'unknown-action' };
+      if (action.faceDown) {
+        const newPlayed = [...trick.played, { by: action.by, cards, faceDown: true }];
+        const newLocked = trick.lockedFromBeating.includes(action.by)
+          ? trick.lockedFromBeating
+          : [...trick.lockedFromBeating, action.by];
+        const newHands = state.hands.map((h, i) =>
+          i === action.by ? removeCardsFromHand(h, action.cardIds) : h,
+        );
+        const allPlayed = newPlayed.length === 4;
+        const newTrick: Trick = {
+          ...trick,
+          played: newPlayed,
+          lockedFromBeating: newLocked,
+        };
+        if (allPlayed) {
+          const topSeat = newTrick.played[newTrick.topIndex]!.by;
+          const firstToAsk = nextSeat(topSeat);
+          return {
+            ok: true,
+            state: {
+              ...state,
+              hands: newHands,
+              currentTrick: { ...newTrick, extraRound: { asked: [], nextToAsk: firstToAsk } },
+              phase: { kind: 'extra-round' },
+              log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+            },
+            events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+          };
+        }
+        return {
+          ok: true,
+          state: {
+            ...state,
+            hands: newHands,
+            currentTrick: newTrick,
+            phase: { kind: 'follow', next: nextSeat(action.by) },
+            log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+          },
+          events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+        };
       }
 
-      const newPlayed = [...trick.played, { by: action.by, cards, faceDown: true }];
-      const newLocked = trick.lockedFromBeating.includes(action.by)
-        ? trick.lockedFromBeating
-        : [...trick.lockedFromBeating, action.by];
+      // Beat path.
+      const top = trick.played[trick.topIndex]!.cards;
+      if (!isPairingValid(cards, top, state.trump)) {
+        if (cards.length === 1) return { ok: false, error: 'cannot-beat' };
+        return { ok: false, error: 'invalid-pairing' };
+      }
 
+      const newPlayed = [...trick.played, { by: action.by, cards, faceDown: false }];
       const newHands = state.hands.map((h, i) =>
         i === action.by ? removeCardsFromHand(h, action.cardIds) : h,
       );
+      const newTopIndex = newPlayed.length - 1;
 
       const allPlayed = newPlayed.length === 4;
       const newTrick: Trick = {
         ...trick,
         played: newPlayed,
-        lockedFromBeating: newLocked,
+        topIndex: newTopIndex,
       };
 
       if (allPlayed) {
@@ -114,9 +155,9 @@ export function engine(state: GameState, action: Action): EngineResult {
             hands: newHands,
             currentTrick: { ...newTrick, extraRound: { asked: [], nextToAsk: firstToAsk } },
             phase: { kind: 'extra-round' },
-            log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+            log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: false }],
           },
-          events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+          events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
         };
       }
 
@@ -127,9 +168,9 @@ export function engine(state: GameState, action: Action): EngineResult {
           hands: newHands,
           currentTrick: newTrick,
           phase: { kind: 'follow', next: nextSeat(action.by) },
-          log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+          log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: false }],
         },
-        events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+        events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
       };
     }
 
