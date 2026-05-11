@@ -19,7 +19,13 @@ function Shell(): JSX.Element {
   useEffect(() => {
     const s = loadSession();
     if (s?.lastRoom && session.playerId && !room.roomCode) {
-      void room.joinRoom(s.lastRoom);
+      void room.joinRoom(s.lastRoom).then((r) => {
+        if (r && 'error' in r) {
+          // Stale lastRoom (server restarted, room expired). Forget it so
+          // the user lands on the lobby cleanly instead of looping.
+          saveSession({ ...s, lastRoom: null });
+        }
+      });
     }
   }, [session.playerId]);
 
