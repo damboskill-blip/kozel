@@ -152,3 +152,67 @@ export function handleLeaveSeat(
   }
   return { ok: true };
 }
+
+import { updateMatchState, setSeatReady, appendMatchEvent } from '../../db/repo-matches.js';
+import type { PlayerInfo } from '@kozel/shared';
+import { engine } from '../../engine/index.js';
+import { projectStateForSeat } from '../../engine/projection.js';
+
+export function handleReady(
+  db: DB, registry: RoomRegistry, socket: Socket, ready: boolean,
+): { ok: true } | { error: string } {
+  const data = socket.data as SocketData;
+  if (!data.matchId) return { error: 'not-in-room' };
+  const room = registry.byMatchId(data.matchId);
+  if (!room) return { error: 'not-in-room' };
+  if (room.status !== 'lobby') return { error: 'match-already-started' };
+  const seat = room.seats.find((s) => s.playerId === data.playerId);
+  if (!seat) return { error: 'not-seated' };
+  seat.ready = ready;
+  setSeatReady(db, room.matchId, seat.seat, ready);
+  return { ok: true };
+}
+
+export function tryStartMatch(
+  db: DB, io: import('socket.io').Server, room: Room,
+): boolean {
+  if (room.status !== 'lobby') return false;
+  const seated = room.seats.every((s) => s.playerId !== null && s.ready);
+  if (!seated) return false;
+
+  const seats: PlayerInfo[] = room.seats.map((s) => ({
+    playerId: s.playerId!,
+    name: s.name ?? `Seat ${s.seat}`,
+    seat: s.seat,
+    connected: s.connected,
+  }));
+  const seed = Math.floor(Math.random() * 0xffffffff);
+  const firstLeader = (seed % 4) as 0 | 1 | 2 | 3;
+
+  const action = {
+    kind: 'start-match' as const,
+    seed,
+    firstLeader,
+    matchId: room.matchId,
+    roomCode: room.roomCode,
+    seats,
+  };
+  const r = engine(room.state, action);
+  if (!r.ok) return false;
+  room.state = r.state;
+  room.status = 'playing';
+  updateMatchState(db, room.matchId, r.state, 'playing');
+  appendMatchEvent(db, room.matchId, action, r.events);
+  io.to(room.matchId).emit('match-started', {
+    matchId: room.matchId,
+    sdachaNumber: r.state.sdachaNumber,
+  });
+  // Broadcast initial per-seat state.
+  for (const s of room.seats) {
+    if (!s.socketId) continue;
+    const projected = projectStateForSeat(r.state, s.seat);
+    io.to(s.socketId).emit('state-update', { state: projected });
+  }
+  io.to(room.matchId).emit('ephemeral', { events: r.events });
+  return true;
+}
