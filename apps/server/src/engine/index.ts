@@ -72,6 +72,67 @@ export function engine(state: GameState, action: Action): EngineResult {
       };
     }
 
+    case 'follow': {
+      if (state.phase.kind !== 'follow') return { ok: false, error: 'invalid-action-for-phase' };
+      if (state.phase.next !== action.by) return { ok: false, error: 'not-your-turn' };
+      const trick = state.currentTrick!;
+      if (action.cardIds.length !== trick.leadCount) {
+        return { ok: false, error: 'wrong-card-count' };
+      }
+      const hand = state.hands[action.by]!;
+      if (!isAllInHand(hand, action.cardIds)) return { ok: false, error: 'cards-not-in-hand' };
+      const cards = pickCardsByIds(hand, action.cardIds)!;
+
+      if (!action.faceDown) {
+        // Beat path implemented in Task 10.
+        return { ok: false, error: 'unknown-action' };
+      }
+
+      const newPlayed = [...trick.played, { by: action.by, cards, faceDown: true }];
+      const newLocked = trick.lockedFromBeating.includes(action.by)
+        ? trick.lockedFromBeating
+        : [...trick.lockedFromBeating, action.by];
+
+      const newHands = state.hands.map((h, i) =>
+        i === action.by ? removeCardsFromHand(h, action.cardIds) : h,
+      );
+
+      const allPlayed = newPlayed.length === 4;
+      const newTrick: Trick = {
+        ...trick,
+        played: newPlayed,
+        lockedFromBeating: newLocked,
+      };
+
+      if (allPlayed) {
+        const topSeat = newTrick.played[newTrick.topIndex]!.by;
+        const firstToAsk = nextSeat(topSeat);
+        return {
+          ok: true,
+          state: {
+            ...state,
+            hands: newHands,
+            currentTrick: { ...newTrick, extraRound: { asked: [], nextToAsk: firstToAsk } },
+            phase: { kind: 'extra-round' },
+            log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+          },
+          events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+        };
+      }
+
+      return {
+        ok: true,
+        state: {
+          ...state,
+          hands: newHands,
+          currentTrick: newTrick,
+          phase: { kind: 'follow', next: nextSeat(action.by) },
+          log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+        },
+        events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+      };
+    }
+
     default:
       void state;
       return { ok: false, error: 'unknown-action' };
