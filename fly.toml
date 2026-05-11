@@ -1,4 +1,3 @@
-app = "kozel"
 primary_region = "ams"
 
 [build]
