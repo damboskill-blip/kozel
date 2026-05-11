@@ -6,8 +6,9 @@ import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broa
 import { handleAction } from './handlers/action.js';
 import { handleClaimIntercept } from './handlers/intercept.js';
 import { handleDisconnect } from './handlers/disconnect.js';
+import { handleChat } from './handlers/chat.js';
 import { RoomRegistry } from '../lifecycle/room.js';
-import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload, ClaimInterceptPayload } from './wire.js';
+import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload, ClaimInterceptPayload, ChatPayload } from './wire.js';
 import type { SocketData } from '@kozel/shared';
 
 export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
@@ -124,6 +125,13 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
       if (!parsed.success) return cb({ error: 'invalid-payload' });
       if (!data.playerId) return cb({ error: 'not-authed' });
       cb(handleClaimIntercept(db, registry, io, socket));
+    });
+
+    socket.on('chat', (raw, cb: (resp: any) => void) => {
+      const parsed = ChatPayload.safeParse(raw);
+      if (!parsed.success) return cb({ error: 'too-long' });
+      if (!data.playerId) return cb({ error: 'not-authed' });
+      cb(handleChat(db, registry, io, socket, parsed.data.text));
     });
 
     socket.on('disconnect', () => {
