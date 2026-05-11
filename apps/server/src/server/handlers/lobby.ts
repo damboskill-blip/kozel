@@ -4,20 +4,24 @@ import type { RoomRegistry, Room } from '../../lifecycle/room.js';
 import { generateRoomCode, emptySeats } from '../../lifecycle/room.js';
 import { createMatch, getMatchByRoomCode } from '../../db/repo-matches.js';
 import { freshGameState } from '../../engine/deal.js';
-import type { RoomSnapshot, SeatPresence, SocketData } from '@kozel/shared';
+import { projectStateForSeat } from '../../engine/projection.js';
+import type { RoomSnapshot, SeatPresence, SeatIndex, SocketData } from '@kozel/shared';
 
 function roomSnapshot(room: Room, mySeat: number | null): RoomSnapshot {
   const seats: SeatPresence[] = room.seats.map((s) => ({
     seat: s.seat, playerId: s.playerId, name: s.name,
     connected: s.connected, ready: s.ready,
   }));
+  const state = mySeat !== null && room.status === 'playing'
+    ? projectStateForSeat(room.state, mySeat as SeatIndex)
+    : null;
   return {
     roomCode: room.roomCode,
     matchId: room.matchId,
     status: room.status,
     mySeat: mySeat === null ? null : (mySeat as 0 | 1 | 2 | 3),
     seats,
-    state: null,
+    state,
   };
 }
 
@@ -103,7 +107,6 @@ export function handleJoinRoom(
 
 import { setSeatPlayer } from '../../db/repo-matches.js';
 import { findPlayerById } from '../../db/repo-players.js';
-import type { SeatIndex } from '@kozel/shared';
 
 export function broadcastSeats(io: import('socket.io').Server, room: Room): void {
   const seats: SeatPresence[] = room.seats.map((s) => ({
@@ -164,7 +167,6 @@ export function handleLeaveSeat(
 import { updateMatchState, setSeatReady, appendMatchEvent } from '../../db/repo-matches.js';
 import type { PlayerInfo } from '@kozel/shared';
 import { engine } from '../../engine/index.js';
-import { projectStateForSeat } from '../../engine/projection.js';
 
 export function handleReady(
   db: DB, registry: RoomRegistry, socket: Socket, ready: boolean,
