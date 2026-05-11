@@ -1,4 +1,5 @@
 import type { GameState, SeatIndex } from '@kozel/shared';
+import { randomFillSync } from 'node:crypto';
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0,1,O,I
 
@@ -6,9 +7,6 @@ export function generateRoomCode(): string {
   const N = ROOM_CODE_ALPHABET.length;
   let out = '';
   const bytes = new Uint8Array(6);
-  // crypto for entropy
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { randomFillSync } = require('node:crypto') as typeof import('node:crypto');
   randomFillSync(bytes);
   for (let i = 0; i < 6; i++) out += ROOM_CODE_ALPHABET[bytes[i]! % N];
   return out;
