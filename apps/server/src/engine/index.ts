@@ -5,6 +5,9 @@ import { freshGameState } from './deal.js';
 import { pickCardsByIds, removeCardsFromHand, isAllInHand } from './helpers.js';
 import { classifyLead, isPairingValid } from './validate.js';
 import { nextToAskOrNull } from './extra-round.js';
+import { sumPlayedSetPoints, teamOfSeat } from './scoring.js';
+import { maybeChangeTrumpOnDraw } from './trump-change.js';
+import { isHandInterceptEligible, interceptEligible } from './intercept.js';
 
 function nextSeat(s: SeatIndex): SeatIndex {
   return ((s + 1) % 4) as SeatIndex;
@@ -249,6 +252,116 @@ export function engine(state: GameState, action: Action): EngineResult {
           log: [...state.log, { kind: 'extra-beat', by: action.by, cards }],
         },
         events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
+      };
+    }
+
+    case 'close-trick': {
+      if (state.phase.kind !== 'between-tricks') return { ok: false, error: 'invalid-action-for-phase' };
+      const trick = state.currentTrick!;
+      const winnerSeat = trick.played[trick.topIndex]!.by;
+      const team = teamOfSeat(winnerSeat);
+      const points = sumPlayedSetPoints(trick.played);
+      const newSdachaScores = {
+        ...state.scores.sdacha,
+        [team]: state.scores.sdacha[team] + points,
+      };
+      return {
+        ok: true,
+        state: {
+          ...state,
+          currentTrick: null,
+          phase: { kind: 'between-tricks' },
+          nextLeader: winnerSeat,
+          scores: { ...state.scores, sdacha: newSdachaScores },
+          log: [...state.log, { kind: 'trick-closed', winner: winnerSeat, team, points }],
+        },
+        events: [{ kind: 'trick-won', bySeat: winnerSeat, team, points }],
+      };
+    }
+
+    case 'draw-cards': {
+      if (state.phase.kind !== 'between-tricks') return { ok: false, error: 'invalid-action-for-phase' };
+      let trump = state.trump;
+      let trumpCardVisible = state.trumpCardVisible;
+      let stock = [...state.stock];
+      const newHands = state.hands.map((h) => [...h]);
+      const events: EphemeralEvent[] = [];
+      let seat = state.nextLeader;
+      for (let i = 0; i < 4; i++) {
+        while (newHands[seat]!.length < 6 && stock.length > 0) {
+          const drawn = stock.shift()!;
+          const before = { stock: [...stock, drawn], trump, trumpCardVisible } as GameState;
+          newHands[seat]!.push(drawn);
+          const change = maybeChangeTrumpOnDraw(before, drawn, stock);
+          trump = change.trump;
+          trumpCardVisible = change.trumpCardVisible;
+          events.push(...change.events);
+        }
+        seat = nextSeat(seat);
+      }
+
+      const allEmpty = newHands.every((h) => h.length === 0);
+      if (allEmpty) {
+        return {
+          ok: true,
+          state: {
+            ...state, hands: newHands, stock, trump, trumpCardVisible,
+            phase: { kind: 'sdacha-end' },
+          },
+          events,
+        };
+      }
+
+      const eligible = interceptEligible(newHands);
+      if (eligible.length > 0) {
+        const INTERCEPT_WINDOW_MS = 3000;
+        const deadlineMs = Date.now() + INTERCEPT_WINDOW_MS;
+        return {
+          ok: true,
+          state: {
+            ...state,
+            hands: newHands, stock, trump, trumpCardVisible,
+            phase: { kind: 'intercept-window', eligible, deadlineMs },
+          },
+          events: [
+            ...events,
+            { kind: 'intercept-window-open', eligibleSeats: eligible, deadlineMs },
+          ],
+        };
+      }
+      return {
+        ok: true,
+        state: {
+          ...state,
+          hands: newHands, stock, trump, trumpCardVisible,
+          phase: { kind: 'lead', leader: state.nextLeader },
+        },
+        events,
+      };
+    }
+
+    case 'claim-intercept': {
+      if (state.phase.kind !== 'intercept-window') return { ok: false, error: 'invalid-action-for-phase' };
+      const hand = state.hands[action.by]!;
+      if (!isHandInterceptEligible(hand)) return { ok: false, error: 'not-eligible-for-intercept' };
+      return {
+        ok: true,
+        state: {
+          ...state,
+          phase: { kind: 'lead', leader: action.by },
+          nextLeader: action.by,
+          log: [...state.log, { kind: 'intercept-claimed', by: action.by }],
+        },
+        events: [{ kind: 'intercept-claimed', bySeat: action.by }],
+      };
+    }
+
+    case 'intercept-window-expired': {
+      if (state.phase.kind !== 'intercept-window') return { ok: false, error: 'invalid-action-for-phase' };
+      return {
+        ok: true,
+        state: { ...state, phase: { kind: 'lead', leader: state.nextLeader } },
+        events: [],
       };
     }
 
