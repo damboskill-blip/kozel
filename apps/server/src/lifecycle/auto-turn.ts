@@ -70,7 +70,6 @@ function autoPlay(
 function autoAdvanceBetweenTricks(
   db: DB, io: IoServer, room: Room, broadcast: (room: Room) => void,
 ): void {
-  // close-trick then draw-cards (engine handles re-emit of intercept-window etc.).
   let r = engine(room.state, { kind: 'close-trick' });
   if (!r.ok) return;
   room.state = r.state;
@@ -84,6 +83,30 @@ function autoAdvanceBetweenTricks(
   updateMatchState(db, room.matchId, r.state, room.status);
   appendMatchEvent(db, room.matchId, { kind: 'draw-cards' }, r.events);
   broadcast(room);
+
+  // If sdacha is done (no more cards), call end-sdacha automatically.
+  if (room.state.phase.kind === 'sdacha-end') {
+    r = engine(room.state, { kind: 'end-sdacha' });
+    if (!r.ok) return;
+    room.state = r.state;
+    updateMatchState(db, room.matchId, r.state, room.status);
+    appendMatchEvent(db, room.matchId, { kind: 'end-sdacha' }, r.events);
+    broadcast(room);
+
+    if (room.state.phase.kind === 'match-end') {
+      room.status = 'finished';
+      updateMatchState(db, room.matchId, room.state, 'finished');
+      return;
+    }
+    // Otherwise auto-start the next sdacha.
+    const seed = Math.floor(Math.random() * 0xffffffff);
+    r = engine(room.state, { kind: 'start-sdacha', seed });
+    if (!r.ok) return;
+    room.state = r.state;
+    updateMatchState(db, room.matchId, r.state, room.status);
+    appendMatchEvent(db, room.matchId, { kind: 'start-sdacha', seed }, r.events);
+    broadcast(room);
+  }
 
   scheduleTurnTimer(db, io, room, broadcast);
 }
