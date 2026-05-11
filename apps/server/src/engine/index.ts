@@ -2,7 +2,7 @@ import type {
   GameState, Action, EngineResult, EphemeralEvent, SeatIndex, LeadCount, Trick,
 } from '@kozel/shared';
 import { freshGameState } from './deal.js';
-import { pickCardsByIds, removeCardsFromHand, isAllInHand } from './helpers.js';
+import { pickCardsByIds, removeCardsFromHand, isAllInHand, pickLowestNCardIds } from './helpers.js';
 import { classifyLead, isPairingValid } from './validate.js';
 import { nextToAskOrNull } from './extra-round.js';
 import { sumPlayedSetPoints, teamOfSeat, computePenalties } from './scoring.js';
@@ -232,12 +232,31 @@ export function engine(state: GameState, action: Action): EngineResult {
         return { ok: false, error: cards.length === 1 ? 'cannot-beat' : 'invalid-pairing' };
       }
 
-      const newPlayed = [...trick.played, { by: action.by, cards, faceDown: false }];
-      const newTopIndex = newPlayed.length - 1;
+      // Beater puts N face-up cards beating top.
+      const played = [...trick.played, { by: action.by, cards, faceDown: false }];
+      const newTopIndex = played.length - 1;
       const newHands = state.hands.map((h, i) =>
         i === action.by ? removeCardsFromHand(h, action.cardIds) : h,
       );
-      const newTopSeat = action.by;
+      const events: EphemeralEvent[] = [
+        { kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false },
+      ];
+
+      // All 3 other players auto-skid leadCount face-down cards.
+      // Keeps hand counts in lockstep so the sdacha can finish.
+      const N = trick.leadCount;
+      for (const seat of [0, 1, 2, 3] as SeatIndex[]) {
+        if (seat === action.by) continue;
+        const h = newHands[seat]!;
+        const skidCount = Math.min(N, h.length);
+        if (skidCount === 0) continue;
+        const skidIds = pickLowestNCardIds(h, skidCount, state.trump);
+        const skidCards = pickCardsByIds(h, skidIds)!;
+        played.push({ by: seat, cards: skidCards, faceDown: true });
+        newHands[seat] = removeCardsFromHand(h, skidIds);
+        events.push({ kind: 'cards-played', bySeat: seat, count: skidCount, faceDown: true });
+      }
+
       return {
         ok: true,
         state: {
@@ -245,13 +264,14 @@ export function engine(state: GameState, action: Action): EngineResult {
           hands: newHands,
           currentTrick: {
             ...trick,
-            played: newPlayed,
+            played,
             topIndex: newTopIndex,
-            extraRound: { asked: [], nextToAsk: nextSeat(newTopSeat) },
+            extraRound: { asked: [], nextToAsk: action.by },
           },
+          phase: { kind: 'between-tricks' },
           log: [...state.log, { kind: 'extra-beat', by: action.by, cards }],
         },
-        events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
+        events,
       };
     }
 

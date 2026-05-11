@@ -1,12 +1,6 @@
 import type { Card, Suit } from '@kozel/shared';
 import { RANK_ORDER } from '../engine/compare.js';
-
-function sortKey(card: Card, trump: Suit | null): [number, number] {
-  // priority order: non-trump normal < trump normal < joker
-  if (card.kind === 'joker') return [2, 0];
-  const isTrump = trump !== null && card.suit === trump;
-  return [isTrump ? 1 : 0, RANK_ORDER[card.rank]];
-}
+import { pickLowestNCardIds } from '../engine/helpers.js';
 
 export function chooseAutoLead(hand: Card[]): string[] {
   if (hand.length === 0) return [];
@@ -36,11 +30,5 @@ export function chooseAutoLead(hand: Card[]): string[] {
 export function chooseAutoFollowSkid(
   hand: Card[], n: number, trump: Suit | null,
 ): string[] {
-  const sorted = [...hand].sort((a, b) => {
-    const [pa, ra] = sortKey(a, trump);
-    const [pb, rb] = sortKey(b, trump);
-    if (pa !== pb) return pa - pb;
-    return ra - rb;
-  });
-  return sorted.slice(0, n).map((c) => c.id);
+  return pickLowestNCardIds(hand, n, trump);
 }

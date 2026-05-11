@@ -100,9 +100,16 @@ describe('engine: extra-round', () => {
     }
   });
 
-  it('extra-beat by valid beater updates topIndex, resets asked, nextToAsk = next-after-new-top', () => {
+  it('extra-beat closes the trick: beater plays N face-up, all 3 others auto-skid N face-down', () => {
+    // Each non-beater has 2 cards in hand. After auto-skid (1 card each since
+    // leadCount=1), they should each have 1 card left, keeping hand counts equal.
     const s = stateInExtraRound({
-      hands: [[], [], [c('K', 'hearts')], []],
+      hands: [
+        [c('6', 'diamonds'), c('A', 'diamonds')],
+        [c('7', 'diamonds'), c('K', 'diamonds')],
+        [c('K', 'hearts')],
+        [c('8', 'diamonds'), c('Q', 'diamonds')],
+      ],
       played: [
         { by: 0, cards: [c('Q', 'hearts')], faceDown: false },
         { by: 1, cards: [c('J', 'hearts')], faceDown: false },
@@ -114,13 +121,24 @@ describe('engine: extra-round', () => {
     });
     const r = engine(s, { kind: 'extra-beat', by: 2, cardIds: ['K-hearts'] });
     expect(r.ok).toBe(true);
-    if (r.ok) {
-      const t = r.state.currentTrick!;
-      expect(t.played).toHaveLength(5);
-      expect(t.topIndex).toBe(4);
-      expect(t.extraRound!.asked).toEqual([]);
-      expect(t.extraRound!.nextToAsk).toBe(3);
-    }
+    if (!r.ok) return;
+    // Phase moves to between-tricks (no more extra-round prompts).
+    expect(r.state.phase.kind).toBe('between-tricks');
+    const t = r.state.currentTrick!;
+    // 4 main + 1 beat + 3 auto-skid = 8 entries.
+    expect(t.played).toHaveLength(8);
+    expect(t.topIndex).toBe(4);
+    // Beater's hand shrank by 1, others shrank by 1 each. All hands now have 1.
+    expect(r.state.hands[0]).toHaveLength(1);
+    expect(r.state.hands[1]).toHaveLength(1);
+    expect(r.state.hands[2]).toHaveLength(0);
+    expect(r.state.hands[3]).toHaveLength(1);
+    // Auto-skidded cards were the LOWEST in each non-beater hand.
+    const skidPlays = t.played.slice(5);
+    const skidIds = new Set(skidPlays.flatMap((p) => p.cards.map((c) => c.id)));
+    expect(skidIds.has('6-diamonds')).toBe(true);
+    expect(skidIds.has('7-diamonds')).toBe(true);
+    expect(skidIds.has('8-diamonds')).toBe(true);
   });
 
   it('extra-beat that does not actually beat top → cannot-beat', () => {
