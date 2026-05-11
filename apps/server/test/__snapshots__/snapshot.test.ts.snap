@@ -1,0 +1,65 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`snapshot: deterministic single trick > match-start with seed=42 produces stable hands and trump 1`] = `
+[
+  [
+    "A-clubs",
+    "A-diamonds",
+    "9-spades",
+    "Q-clubs",
+    "joker-1",
+    "7-hearts",
+  ],
+  [
+    "9-diamonds",
+    "joker-2",
+    "8-clubs",
+    "8-spades",
+    "7-clubs",
+    "10-spades",
+  ],
+  [
+    "Q-hearts",
+    "J-clubs",
+    "Q-diamonds",
+    "8-diamonds",
+    "10-clubs",
+    "7-spades",
+  ],
+  [
+    "9-hearts",
+    "J-hearts",
+    "8-hearts",
+    "J-spades",
+    "A-spades",
+    "6-diamonds",
+  ],
+]
+`;
+
+exports[`snapshot: deterministic single trick > match-start with seed=42 produces stable hands and trump 2`] = `"diamonds"`;
+
+exports[`snapshot: deterministic single trick > start-match → 4× face-down skid → close → draw → produces stable state 1`] = `
+{
+  "handsCount": [
+    6,
+    6,
+    6,
+    6,
+  ],
+  "nextLeader": 0,
+  "phase": "lead",
+  "scores": {
+    "match": {
+      "A": 0,
+      "B": 0,
+    },
+    "sdacha": {
+      "A": 14,
+      "B": 0,
+    },
+  },
+  "stockCount": 8,
+  "trump": "diamonds",
+}
+`;
