@@ -2,9 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { Server as IoServer, type Socket } from 'socket.io';
 import type { DB } from '../db/index.js';
 import { handleHello } from './handlers/hello.js';
-import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broadcastSeats } from './handlers/lobby.js';
+import { handleCreateRoom, handleJoinRoom, handleTakeSeat, handleLeaveSeat, broadcastSeats, handleReady, tryStartMatch } from './handlers/lobby.js';
+import { handleAction } from './handlers/action.js';
 import { RoomRegistry } from '../lifecycle/room.js';
-import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload } from './wire.js';
+import { CreateRoomPayload, JoinRoomPayload, TakeSeatPayload, LeaveSeatPayload, ReadyPayload, ActionPayload } from './wire.js';
 import type { SocketData } from '@kozel/shared';
 
 export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
@@ -61,6 +62,29 @@ export async function attachIo(app: FastifyInstance, db: DB): Promise<void> {
         const room = registry.byMatchId(data.matchId!);
         if (room) broadcastSeats(io, room);
       }
+    });
+
+    socket.on('ready', (raw, cb: (resp: any) => void) => {
+      const parsed = ReadyPayload.safeParse(raw);
+      if (!parsed.success) return cb({ error: 'invalid-payload' });
+      if (!data.playerId) return cb({ error: 'not-authed' });
+      const r = handleReady(db, registry, socket, parsed.data.ready);
+      cb(r);
+      if ('ok' in r) {
+        const room = registry.byMatchId(data.matchId!);
+        if (room) {
+          broadcastSeats(io, room);
+          tryStartMatch(db, io, room);
+        }
+      }
+    });
+
+    socket.on('action', (raw, cb: (resp: any) => void) => {
+      const parsed = ActionPayload.safeParse(raw);
+      if (!parsed.success) return cb({ error: 'invalid-payload' });
+      if (!data.playerId) return cb({ error: 'not-authed' });
+      const r = handleAction(db, registry, io, socket, parsed.data as any);
+      cb(r);
     });
   });
 
