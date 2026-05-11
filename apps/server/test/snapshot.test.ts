@@ -50,6 +50,8 @@ describe('snapshot: deterministic single trick', () => {
     expect(r.ok).toBe(true); if (!r.ok) return; state = r.state;
     r = engine(state, { kind: 'extra-pass', by: 3 });
     expect(r.ok).toBe(true); if (!r.ok) return; state = r.state;
+    r = engine(state, { kind: 'extra-pass', by: 0 });
+    expect(r.ok).toBe(true); if (!r.ok) return; state = r.state;
 
     expect(state.phase.kind).toBe('between-tricks');
 

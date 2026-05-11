@@ -40,7 +40,7 @@ function stateInExtraRound(opts: {
 }
 
 describe('engine: extra-round', () => {
-  it('extra-pass advances nextToAsk clockwise, skipping top owner', () => {
+  it('extra-pass advances nextToAsk clockwise; top seat is asked last', () => {
     const s = stateInExtraRound({
       hands: [[], [c('6', 'hearts')], [c('7', 'hearts')], [c('8', 'hearts')]],
       played: [
@@ -52,12 +52,20 @@ describe('engine: extra-round', () => {
       topIndex: 0,
       nextToAsk: 1,
     });
-    const r = engine(s, { kind: 'extra-pass', by: 1 });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.state.currentTrick!.extraRound!.asked).toEqual([1]);
-      expect(r.state.currentTrick!.extraRound!.nextToAsk).toBe(2);
-    }
+    let r = engine(s, { kind: 'extra-pass', by: 1 });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.state.currentTrick!.extraRound!.asked).toEqual([1]);
+    expect(r.state.currentTrick!.extraRound!.nextToAsk).toBe(2);
+
+    r = engine(r.state, { kind: 'extra-pass', by: 2 });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.state.currentTrick!.extraRound!.nextToAsk).toBe(3);
+
+    r = engine(r.state, { kind: 'extra-pass', by: 3 });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    // After 3 non-top seats pass, the top seat (0) is asked.
+    expect(r.state.currentTrick!.extraRound!.nextToAsk).toBe(0);
+    expect(r.state.phase.kind).toBe('extra-round');
   });
 
   it('extra-pass by player who is not nextToAsk → not-your-turn', () => {
@@ -77,7 +85,7 @@ describe('engine: extra-round', () => {
     if (!r.ok) expect(r.error).toBe('not-your-turn');
   });
 
-  it('all 3 non-top players pass → trick closes, phase = between-tricks', () => {
+  it('all 4 players (incl. top) pass → trick closes, phase = between-tricks', () => {
     const s = stateInExtraRound({
       hands: [[], [], [], []],
       played: [
@@ -94,10 +102,47 @@ describe('engine: extra-round', () => {
     r = engine(r.state, { kind: 'extra-pass', by: 2 });
     expect(r.ok).toBe(true); if (!r.ok) return;
     r = engine(r.state, { kind: 'extra-pass', by: 3 });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.state.phase.kind).toBe('extra-round');
+    r = engine(r.state, { kind: 'extra-pass', by: 0 });
     expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.state.phase.kind).toBe('between-tricks');
-    }
+    if (r.ok) expect(r.state.phase.kind).toBe('between-tricks');
+  });
+
+  it('top seat can pile on more cards in extra-round (extra-beat their own top)', () => {
+    // Seat 0 led Q♥ and won; seats 1-3 followed without beating. Seat 0 still
+    // has K♥ in hand and decides to pile it on top, increasing the trick's
+    // value. All 3 others auto-skid 1 face-down card.
+    const s = stateInExtraRound({
+      hands: [
+        [c('K', 'hearts'), c('A', 'spades')],
+        [c('7', 'spades'), c('8', 'spades')],
+        [c('6', 'diamonds'), c('9', 'spades')],
+        [c('7', 'diamonds'), c('10', 'spades')],
+      ],
+      played: [
+        { by: 0, cards: [c('Q', 'hearts')], faceDown: false },
+        { by: 1, cards: [c('J', 'hearts')], faceDown: false },
+        { by: 2, cards: [c('9', 'hearts')], faceDown: false },
+        { by: 3, cards: [c('8', 'hearts')], faceDown: false },
+      ],
+      topIndex: 0,
+      nextToAsk: 0, asked: [1, 2, 3],
+    });
+    const r = engine(s, { kind: 'extra-beat', by: 0, cardIds: ['K-hearts'] });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.state.phase.kind).toBe('between-tricks');
+    const t = r.state.currentTrick!;
+    // 4 main + 1 beat (by top) + 3 auto-skid = 8.
+    expect(t.played).toHaveLength(8);
+    expect(t.topIndex).toBe(4);
+    expect(t.played[4]!.by).toBe(0);
+    expect(t.played[4]!.cards[0]!.id).toBe('K-hearts');
+    // Top seat shed 1 (K♥); others auto-skid 1 face-down each.
+    expect(r.state.hands[0]).toHaveLength(1);
+    expect(r.state.hands[1]).toHaveLength(1);
+    expect(r.state.hands[2]).toHaveLength(1);
+    expect(r.state.hands[3]).toHaveLength(1);
   });
 
   it('extra-beat closes the trick: beater plays N face-up, all 3 others auto-skid N face-down', () => {

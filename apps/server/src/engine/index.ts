@@ -184,7 +184,9 @@ export function engine(state: GameState, action: Action): EngineResult {
       if (trick.extraRound!.nextToAsk !== action.by) return { ok: false, error: 'not-your-turn' };
 
       const newAsked = [...trick.extraRound!.asked, action.by];
-      const allAsked = newAsked.length === 3;
+      // All 4 seats (3 non-top + top) get a chance to beat. Once everyone has
+      // passed, the trick closes.
+      const allAsked = newAsked.length === 4;
 
       if (allAsked) {
         return {
@@ -199,9 +201,8 @@ export function engine(state: GameState, action: Action): EngineResult {
         };
       }
 
-      const topSeat = trick.played[trick.topIndex]!.by;
       let s: SeatIndex = nextSeat(action.by);
-      while (newAsked.includes(s) || s === topSeat) {
+      while (newAsked.includes(s)) {
         s = nextSeat(s);
       }
       return {
