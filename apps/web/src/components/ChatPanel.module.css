@@ -1,0 +1,5 @@
+.panel { display: flex; flex-direction: column; gap: 4px; height: 100%; padding: 8px; background: var(--bg-light); border-radius: 8px; min-width: 240px; }
+.list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.msg { font-size: 14px; }
+.from { color: var(--fg-dim); margin-right: 6px; font-weight: 600; }
+.input { background: rgba(0,0,0,.2); color: var(--fg); border-radius: 4px; padding: 6px 8px; width: 100%; }
