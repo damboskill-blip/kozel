@@ -4,7 +4,7 @@ import type { Room } from './room.js';
 import { setTurnTimer, clearTurnTimer } from './timers.js';
 import { engine } from '../engine/index.js';
 import { appendMatchEvent, updateMatchState } from '../db/repo-matches.js';
-import { chooseAutoLead, chooseAutoFollowSkid } from './auto-play.js';
+import { chooseAutoLead, chooseAutoFollowSkid, findCheapestSingleBeat } from './auto-play.js';
 import type { Action, SeatIndex } from '@kozel/shared';
 
 const TURN_MS_PLAY = 30_000;
@@ -59,11 +59,41 @@ function autoPlay(
     action = { kind: 'lead', by: seat, cardIds };
   } else if (phase.kind === 'follow') {
     const trick = room.state.currentTrick!;
-    const cardIds = chooseAutoFollowSkid(room.state.hands[seat]!, trick.leadCount, room.state.trump);
-    if (cardIds.length === 0) return;
-    action = { kind: 'follow', by: seat, cardIds, faceDown: true };
+    const hand = room.state.hands[seat]!;
+    // For single-card tricks the bot tries to beat with its cheapest covering
+    // card; otherwise (or for multi-card pairings, which the bot does not yet
+    // search for) it face-down skids the lowest N cards. This stops the bot
+    // from quietly burying a joker face-down when a joker beat is available.
+    let beatId: string | null = null;
+    if (trick.leadCount === 1) {
+      const top = trick.played[trick.topIndex]!.cards[0]!;
+      beatId = findCheapestSingleBeat(hand, top, room.state.trump);
+    }
+    if (beatId !== null) {
+      action = { kind: 'follow', by: seat, cardIds: [beatId], faceDown: false };
+    } else {
+      const cardIds = chooseAutoFollowSkid(hand, trick.leadCount, room.state.trump);
+      if (cardIds.length === 0) return;
+      action = { kind: 'follow', by: seat, cardIds, faceDown: true };
+    }
   } else if (phase.kind === 'extra-round') {
-    action = { kind: 'extra-pass', by: seat };
+    const trick = room.state.currentTrick!;
+    const hand = room.state.hands[seat]!;
+    const locked = trick.lockedFromBeating.includes(seat);
+    const isTopSeat = trick.played[trick.topIndex]!.by === seat;
+    // Bots try to extra-beat with cheapest single covering card. Skip when
+    // locked-from-beating, when piling on their own top would just drain a
+    // strong card, or for multi-card pairings (no pairing search yet).
+    let beatId: string | null = null;
+    if (!locked && !isTopSeat && trick.leadCount === 1 && hand.length > 0) {
+      const top = trick.played[trick.topIndex]!.cards[0]!;
+      beatId = findCheapestSingleBeat(hand, top, room.state.trump);
+    }
+    if (beatId !== null) {
+      action = { kind: 'extra-beat', by: seat, cardIds: [beatId] };
+    } else {
+      action = { kind: 'extra-pass', by: seat };
+    }
   } else {
     return;
   }

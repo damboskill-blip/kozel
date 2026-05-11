@@ -4,7 +4,7 @@ import type {
 import { freshGameState } from './deal.js';
 import { pickCardsByIds, removeCardsFromHand, isAllInHand, pickLowestNCardIds } from './helpers.js';
 import { classifyLead, isPairingValid } from './validate.js';
-import { nextToAskOrNull } from './extra-round.js';
+import { nextToAskOrNull, openExtraRound } from './extra-round.js';
 import { sumPlayedSetPoints, teamOfSeat, computePenalties } from './scoring.js';
 import { maybeChangeTrumpOnDraw } from './trump-change.js';
 import { isHandInterceptEligible, interceptEligible } from './intercept.js';
@@ -103,14 +103,30 @@ export function engine(state: GameState, action: Action): EngineResult {
         };
         if (allPlayed) {
           const topSeat = newTrick.played[newTrick.topIndex]!.by;
-          const firstToAsk = nextSeat(topSeat);
+          const opened = openExtraRound(newTrick.leadCount, topSeat, newHands);
+          if (opened.open) {
+            return {
+              ok: true,
+              state: {
+                ...state,
+                hands: newHands,
+                currentTrick: {
+                  ...newTrick,
+                  extraRound: { asked: opened.asked, nextToAsk: opened.nextToAsk },
+                },
+                phase: { kind: 'extra-round' },
+                log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
+              },
+              events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
+            };
+          }
           return {
             ok: true,
             state: {
               ...state,
               hands: newHands,
-              currentTrick: { ...newTrick, extraRound: { asked: [], nextToAsk: firstToAsk } },
-              phase: { kind: 'extra-round' },
+              currentTrick: newTrick,
+              phase: { kind: 'between-tricks' },
               log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: true }],
             },
             events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: true }],
@@ -151,14 +167,30 @@ export function engine(state: GameState, action: Action): EngineResult {
 
       if (allPlayed) {
         const topSeat = newTrick.played[newTrick.topIndex]!.by;
-        const firstToAsk = nextSeat(topSeat);
+        const opened = openExtraRound(newTrick.leadCount, topSeat, newHands);
+        if (opened.open) {
+          return {
+            ok: true,
+            state: {
+              ...state,
+              hands: newHands,
+              currentTrick: {
+                ...newTrick,
+                extraRound: { asked: opened.asked, nextToAsk: opened.nextToAsk },
+              },
+              phase: { kind: 'extra-round' },
+              log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: false }],
+            },
+            events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
+          };
+        }
         return {
           ok: true,
           state: {
             ...state,
             hands: newHands,
-            currentTrick: { ...newTrick, extraRound: { asked: [], nextToAsk: firstToAsk } },
-            phase: { kind: 'extra-round' },
+            currentTrick: newTrick,
+            phase: { kind: 'between-tricks' },
             log: [...state.log, { kind: 'follow', by: action.by, cards, faceDown: false }],
           },
           events: [{ kind: 'cards-played', bySeat: action.by, count: cards.length, faceDown: false }],
@@ -244,7 +276,10 @@ export function engine(state: GameState, action: Action): EngineResult {
       ];
 
       // All 3 other players auto-skid leadCount face-down cards.
-      // Keeps hand counts in lockstep so the sdacha can finish.
+      // Keeps hand counts in lockstep so the sdacha can finish. These seats
+      // are NOT added to lockedFromBeating — each extra-beat re-opens the
+      // extra-round, so a player who auto-skidded here may still beat with a
+      // higher pairing in a subsequent round (until the trick closes).
       const N = trick.leadCount;
       for (const seat of [0, 1, 2, 3] as SeatIndex[]) {
         if (seat === action.by) continue;
@@ -258,6 +293,29 @@ export function engine(state: GameState, action: Action): EngineResult {
         events.push({ kind: 'cards-played', bySeat: seat, count: skidCount, faceDown: true });
       }
 
+      // Re-open the extra-round around the new top (the beater). Seats with
+      // no cards left auto-pass. If every seat auto-passes, the trick closes
+      // (between-tricks); otherwise nextToAsk advances to the first seat
+      // that still has cards.
+      const opened = openExtraRound(N, action.by, newHands);
+      if (opened.open) {
+        return {
+          ok: true,
+          state: {
+            ...state,
+            hands: newHands,
+            currentTrick: {
+              ...trick,
+              played,
+              topIndex: newTopIndex,
+              extraRound: { asked: opened.asked, nextToAsk: opened.nextToAsk },
+            },
+            phase: { kind: 'extra-round' },
+            log: [...state.log, { kind: 'extra-beat', by: action.by, cards }],
+          },
+          events,
+        };
+      }
       return {
         ok: true,
         state: {

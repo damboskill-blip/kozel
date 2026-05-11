@@ -104,13 +104,20 @@ describe('engine: beat in follow (pairing)', () => {
     if (!r.ok) expect(r.error).toBe('cannot-beat');
   });
 
-  it('joker beats joker — second joker covers first', () => {
+  it('joker beats joker — second joker covers first and takes the trick', () => {
     const hands: Card[][] = [[], [j(2)], [], []];
     const s = stateInFollow({
       hands, leadCards: [j(1)], leadSuit: 'joker-only', next: 1, trump: 'hearts',
     });
     const r = engine(s, { kind: 'follow', by: 1, cardIds: ['joker-2'], faceDown: false });
     expect(r.ok).toBe(true);
+    if (r.ok) {
+      // After the second joker covers, the new top must point at the seat
+      // that played the second joker (seat 1), not the original leader.
+      const t = r.state.currentTrick!;
+      expect(t.played[t.topIndex]!.by).toBe(1);
+      expect(t.played[t.topIndex]!.cards[0]!.id).toBe('joker-2');
+    }
   });
 
   it('beat updates topIndex and does not lock from beating', () => {

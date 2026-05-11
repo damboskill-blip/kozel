@@ -82,9 +82,15 @@ describe('engine: follow action — face-down skid', () => {
     if (!r.ok) expect(r.error).toBe('not-your-turn');
   });
 
-  it('after 4th follow (all 4 played), phase becomes extra-round', () => {
+  it('after 4th follow (all 4 played, hands non-empty), phase becomes extra-round', () => {
+    // Each follower keeps a leftover card so the extra-round actually opens —
+    // openExtraRound auto-passes seats with empty hands and closes the trick
+    // immediately if every seat is empty.
     const hands: Card[][] = [
-      [], [c('6', 'diamonds')], [c('7', 'diamonds')], [c('8', 'diamonds')],
+      [c('9', 'diamonds')],
+      [c('6', 'diamonds'), c('K', 'spades')],
+      [c('7', 'diamonds'), c('K', 'clubs')],
+      [c('8', 'diamonds'), c('Q', 'clubs')],
     ];
     const s = stateInFollow({
       hands, leadCards: [c('A', 'hearts')], leadSuit: 'hearts', next: 1,
@@ -103,5 +109,21 @@ describe('engine: follow action — face-down skid', () => {
       expect(r.state.currentTrick!.extraRound!.nextToAsk).toBe(1);
       expect(r.state.currentTrick!.extraRound!.asked).toEqual([]);
     }
+  });
+
+  it('after 4th follow with all hands empty, phase skips extra-round → between-tricks', () => {
+    const hands: Card[][] = [
+      [], [c('6', 'diamonds')], [c('7', 'diamonds')], [c('8', 'diamonds')],
+    ];
+    const s = stateInFollow({
+      hands, leadCards: [c('A', 'hearts')], leadSuit: 'hearts', next: 1,
+    });
+    let r = engine(s, { kind: 'follow', by: 1, cardIds: ['6-diamonds'], faceDown: true });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    r = engine(r.state, { kind: 'follow', by: 2, cardIds: ['7-diamonds'], faceDown: true });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    r = engine(r.state, { kind: 'follow', by: 3, cardIds: ['8-diamonds'], faceDown: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.state.phase.kind).toBe('between-tricks');
   });
 });

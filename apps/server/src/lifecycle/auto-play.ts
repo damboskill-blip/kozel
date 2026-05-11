@@ -1,5 +1,5 @@
 import type { Card, Suit } from '@kozel/shared';
-import { RANK_ORDER } from '../engine/compare.js';
+import { RANK_ORDER, beats } from '../engine/compare.js';
 import { pickLowestNCardIds } from '../engine/helpers.js';
 
 export function chooseAutoLead(hand: Card[]): string[] {
@@ -31,4 +31,30 @@ export function chooseAutoFollowSkid(
   hand: Card[], n: number, trump: Suit | null,
 ): string[] {
   return pickLowestNCardIds(hand, n, trump);
+}
+
+// Sort key for "cheapest" candidate when beating: prefer non-trump non-joker
+// (rank-ascending), then trump (rank-ascending), then jokers last. Mirrors the
+// face-down skid ranking so the bot never burns a joker on a normal card when
+// a normal beat would work.
+function beatSortKey(card: Card, trump: Suit | null): [number, number] {
+  if (card.kind === 'joker') return [2, 0];
+  const isTrump = trump !== null && card.suit === trump;
+  return [isTrump ? 1 : 0, RANK_ORDER[card.rank]];
+}
+
+// Returns the cheapest single card that beats `top`, or null if none exists.
+// Used by the bot to decide between face-up beat and face-down skid.
+export function findCheapestSingleBeat(
+  hand: Card[], top: Card, trump: Suit | null,
+): string | null {
+  const candidates = hand.filter((c) => beats(c, top, trump));
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => {
+    const [pa, ra] = beatSortKey(a, trump);
+    const [pb, rb] = beatSortKey(b, trump);
+    if (pa !== pb) return pa - pb;
+    return ra - rb;
+  });
+  return candidates[0]!.id;
 }
