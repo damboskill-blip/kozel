@@ -5,7 +5,7 @@ import { freshGameState } from './deal.js';
 import { pickCardsByIds, removeCardsFromHand, isAllInHand } from './helpers.js';
 import { classifyLead, isPairingValid } from './validate.js';
 import { nextToAskOrNull } from './extra-round.js';
-import { sumPlayedSetPoints, teamOfSeat } from './scoring.js';
+import { sumPlayedSetPoints, teamOfSeat, computePenalties } from './scoring.js';
 import { maybeChangeTrumpOnDraw } from './trump-change.js';
 import { isHandInterceptEligible, interceptEligible } from './intercept.js';
 
@@ -363,6 +363,80 @@ export function engine(state: GameState, action: Action): EngineResult {
         state: { ...state, phase: { kind: 'lead', leader: state.nextLeader } },
         events: [],
       };
+    }
+
+    case 'end-sdacha': {
+      if (state.phase.kind !== 'sdacha-end') return { ok: false, error: 'invalid-action-for-phase' };
+      const penalties = computePenalties(state.scores.sdacha);
+      const newMatch = {
+        A: state.scores.match.A + penalties.A,
+        B: state.scores.match.B + penalties.B,
+      };
+      const events: EphemeralEvent[] = [
+        { kind: 'sdacha-end', scores: { ...state.scores.sdacha }, penalties },
+      ];
+      const matchEnded = newMatch.A >= 18 || newMatch.B >= 18;
+      if (matchEnded) {
+        const loser = newMatch.A >= 18 && newMatch.B >= 18
+          ? (newMatch.A >= newMatch.B ? 'A' : 'B')
+          : (newMatch.A >= 18 ? 'A' : 'B');
+        return {
+          ok: true,
+          state: {
+            ...state,
+            scores: { sdacha: { A: 0, B: 0 }, match: newMatch },
+            phase: { kind: 'match-end', loser },
+            log: [...state.log, { kind: 'sdacha-ended', scores: state.scores.sdacha, penalties }, { kind: 'match-ended', loser }],
+          },
+          events: [...events, { kind: 'match-end', loser }],
+        };
+      }
+      return {
+        ok: true,
+        state: {
+          ...state,
+          scores: { sdacha: { A: 0, B: 0 }, match: newMatch },
+          phase: { kind: 'between-tricks' },
+          log: [...state.log, { kind: 'sdacha-ended', scores: state.scores.sdacha, penalties }],
+        },
+        events,
+      };
+    }
+
+    case 'start-sdacha': {
+      if (state.phase.kind !== 'between-tricks') return { ok: false, error: 'invalid-action-for-phase' };
+      const newState = freshGameState({
+        seed: action.seed,
+        firstLeader: state.nextLeader,
+        matchId: state.matchId,
+        roomCode: state.roomCode,
+        seats: state.seats,
+        sdachaNumber: state.sdachaNumber + 1,
+        matchScores: { ...state.scores.match },
+      });
+      return {
+        ok: true,
+        state: newState,
+        events: [
+          { kind: 'dealt' },
+          ...(newState.trumpCardVisible ? [{ kind: 'trump-revealed', card: newState.trumpCardVisible } as EphemeralEvent] : []),
+        ],
+      };
+    }
+
+    case 'rematch': {
+      if (state.phase.kind !== 'match-end') return { ok: false, error: 'invalid-action-for-phase' };
+      const firstLeader = ((action.seed >>> 0) % 4) as 0 | 1 | 2 | 3;
+      const newState = freshGameState({
+        seed: action.seed,
+        firstLeader,
+        matchId: state.matchId,
+        roomCode: state.roomCode,
+        seats: state.seats,
+        sdachaNumber: 1,
+        matchScores: { A: 0, B: 0 },
+      });
+      return { ok: true, state: newState, events: [{ kind: 'dealt' }] };
     }
 
     default:
