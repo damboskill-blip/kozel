@@ -11,3 +11,10 @@
 }
 body { background: var(--bg); color: var(--fg); }
 #root { display: flex; flex-direction: column; height: 100dvh; }
+
+@media (max-width: 480px) {
+  :root { font-size: 14px; }
+}
+@media (min-width: 1024px) {
+  #root { max-width: 1024px; margin: 0 auto; }
+}

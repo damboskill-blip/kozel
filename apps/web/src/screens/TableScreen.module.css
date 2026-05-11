@@ -8,3 +8,7 @@
 .disabled { opacity: 0.4; cursor: not-allowed; }
 .bottom { display: flex; gap: 8px; }
 .handArea { flex: 1; }
+
+@media (max-width: 640px) {
+  .bottom { flex-direction: column; }
+}

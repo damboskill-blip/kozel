@@ -1,3 +1,8 @@
 .hand { display: flex; gap: -16px; padding: 12px; overflow-x: auto; }
 .hand > * { margin-right: -16px; }
 .hand > *:last-child { margin-right: 0; }
+
+@media (max-width: 480px) {
+  .hand { gap: -24px; }
+  .hand > * { margin-right: -24px; }
+}
