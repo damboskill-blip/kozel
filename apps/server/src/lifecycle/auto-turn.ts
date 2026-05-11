@@ -31,6 +31,15 @@ export function scheduleTurnTimer(
   }
 
   if (nextSeat === null) return;
+
+  // Stuck-state recovery: the next-to-act seat has no cards, so no legal play
+  // exists. Collapse the sdacha to its end state and let the normal end-sdacha
+  // path tally points and start the next sdacha. Triggered only for legacy
+  // rooms — new sdachas can't reach this state thanks to the draw-cards fix.
+  if (room.state.hands[nextSeat]!.length === 0) {
+    queueMicrotask(() => forceEndStuckSdacha(db, io, room, broadcast));
+    return;
+  }
   const seat = room.seats[nextSeat]!;
   const isAfk = !seat.connected || seat.playerId === null;
 
@@ -65,6 +74,41 @@ function autoPlay(
   appendMatchEvent(db, room.matchId, action, r.events);
   broadcast(room);
   scheduleTurnTimer(db, io, room, broadcast);
+}
+
+function forceEndStuckSdacha(
+  db: DB, io: IoServer, room: Room, broadcast: (room: Room) => void,
+): void {
+  let r = engine(room.state, { kind: 'force-end-sdacha' });
+  if (!r.ok) return;
+  room.state = r.state;
+  updateMatchState(db, room.matchId, r.state, room.status);
+  appendMatchEvent(db, room.matchId, { kind: 'force-end-sdacha' }, r.events);
+  broadcast(room);
+
+  r = engine(room.state, { kind: 'end-sdacha' });
+  if (!r.ok) return;
+  room.state = r.state;
+  updateMatchState(db, room.matchId, r.state, room.status);
+  appendMatchEvent(db, room.matchId, { kind: 'end-sdacha' }, r.events);
+  broadcast(room);
+
+  if (room.state.phase.kind === 'match-end') {
+    room.status = 'finished';
+    updateMatchState(db, room.matchId, room.state, 'finished');
+    return;
+  }
+
+  const seed = Math.floor(Math.random() * 0xffffffff);
+  r = engine(room.state, { kind: 'start-sdacha', seed });
+  if (!r.ok) return;
+  room.state = r.state;
+  updateMatchState(db, room.matchId, r.state, room.status);
+  appendMatchEvent(db, room.matchId, { kind: 'start-sdacha', seed }, r.events);
+  broadcast(room);
+
+  scheduleTurnTimer(db, io, room, broadcast);
+  void io;
 }
 
 function autoAdvanceBetweenTricks(

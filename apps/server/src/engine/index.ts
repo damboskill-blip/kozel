@@ -303,25 +303,43 @@ export function engine(state: GameState, action: Action): EngineResult {
       if (state.phase.kind !== 'between-tricks') return { ok: false, error: 'invalid-action-for-phase' };
       let trump = state.trump;
       let trumpCardVisible = state.trumpCardVisible;
-      let stock = [...state.stock];
+      const stock = [...state.stock];
       const newHands = state.hands.map((h) => [...h]);
       const events: EphemeralEvent[] = [];
-      let seat = state.nextLeader;
-      for (let i = 0; i < 4; i++) {
-        while (newHands[seat]!.length < 6 && stock.length > 0) {
-          const drawn = stock.shift()!;
-          const before = { stock: [...stock, drawn], trump, trumpCardVisible } as GameState;
-          newHands[seat]!.push(drawn);
-          const change = maybeChangeTrumpOnDraw(before, drawn, stock);
-          trump = change.trump;
-          trumpCardVisible = change.trumpCardVisible;
-          events.push(...change.events);
+
+      // Round-robin refill, starting from the winner of the last trick.
+      // Each round every seat clockwise gets at most one card if it needs one,
+      // so the hand-size gap between seats can never grow by more than 1 in a
+      // single draw phase. Previously this loop fully refilled each seat in
+      // turn, which let the winner take 2-3 cards while the last seat got 0
+      // — that asymmetry compounded across sdacha and could leave a player
+      // stranded with 0 cards while others still had cards to play.
+      let progressed = true;
+      while (progressed && stock.length > 0) {
+        progressed = false;
+        let s: SeatIndex = state.nextLeader;
+        for (let i = 0; i < 4; i++) {
+          if (newHands[s]!.length < 6 && stock.length > 0) {
+            const drawn = stock.shift()!;
+            const before = { stock: [...stock, drawn], trump, trumpCardVisible } as GameState;
+            newHands[s]!.push(drawn);
+            const change = maybeChangeTrumpOnDraw(before, drawn, stock);
+            trump = change.trump;
+            trumpCardVisible = change.trumpCardVisible;
+            events.push(...change.events);
+            progressed = true;
+          }
+          s = nextSeat(s);
         }
-        seat = nextSeat(seat);
       }
 
+      // End the sdacha as soon as further play is impossible: someone has 0
+      // cards and the stock is empty, so the next trick could not collect 4
+      // legal plays. Cards remaining in non-empty hands stay unscored.
+      const stockEmpty = stock.length === 0;
+      const anyEmpty = newHands.some((h) => h.length === 0);
       const allEmpty = newHands.every((h) => h.length === 0);
-      if (allEmpty) {
+      if (allEmpty || (stockEmpty && anyEmpty)) {
         return {
           ok: true,
           state: {
@@ -381,6 +399,34 @@ export function engine(state: GameState, action: Action): EngineResult {
       return {
         ok: true,
         state: { ...state, phase: { kind: 'lead', leader: state.nextLeader } },
+        events: [],
+      };
+    }
+
+    case 'force-end-sdacha': {
+      // Recovery escape hatch: legacy rooms (created before the round-robin
+      // draw fix) can sit in a phase where the next-to-act seat has 0 cards
+      // and therefore can't play. The new draw-cards logic prevents reaching
+      // this state, but for rooms already stuck we collapse straight to
+      // sdacha-end so the match can progress.
+      const ph = state.phase;
+      let stuckSeat: SeatIndex | null = null;
+      if (ph.kind === 'lead' && state.hands[ph.leader]!.length === 0) {
+        stuckSeat = ph.leader;
+      } else if (ph.kind === 'follow' && state.hands[ph.next]!.length === 0) {
+        stuckSeat = ph.next;
+      } else if (ph.kind === 'extra-round') {
+        const t = state.currentTrick;
+        const s = t?.extraRound?.nextToAsk;
+        if (s !== undefined && state.hands[s]!.length === 0) stuckSeat = s;
+      } else if (ph.kind === 'intercept-window') {
+        const empties = state.hands.filter((h) => h.length === 0).length;
+        if (empties > 0 && state.stock.length === 0) stuckSeat = 0;
+      }
+      if (stuckSeat === null) return { ok: false, error: 'no-stuck-seat' };
+      return {
+        ok: true,
+        state: { ...state, currentTrick: null, phase: { kind: 'sdacha-end' } },
         events: [],
       };
     }

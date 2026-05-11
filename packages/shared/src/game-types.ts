@@ -95,6 +95,7 @@ export type Action =
   | { kind: 'close-trick' }
   | { kind: 'draw-cards' }
   | { kind: 'end-sdacha' }
+  | { kind: 'force-end-sdacha' }
   | { kind: 'rematch'; seed: number };
 
 export type EphemeralEvent =
@@ -122,6 +123,7 @@ export type EngineError =
   | 'cannot-beat'
   | 'locked-from-beating'
   | 'not-eligible-for-intercept'
+  | 'no-stuck-seat'
   | 'unknown-action';
 
 export function teamOf(seat: SeatIndex): Team {
