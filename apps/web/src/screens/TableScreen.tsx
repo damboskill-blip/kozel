@@ -58,17 +58,22 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
   };
 
   const phase = state.phase;
-  const isMyTurn =
-    (phase.kind === 'lead' && phase.leader === mySeat) ||
-    (phase.kind === 'follow' && phase.next === mySeat) ||
-    (phase.kind === 'extra-round' && state.currentTrick?.extraRound?.nextToAsk === mySeat);
+  const activeSeat = useMemo((): SeatIndex | null => {
+    if (phase.kind === 'lead') return phase.leader;
+    if (phase.kind === 'follow') return phase.next;
+    if (phase.kind === 'extra-round') return state.currentTrick?.extraRound?.nextToAsk ?? null;
+    return null;
+  }, [phase, state.currentTrick]);
+  const isMyTurn = activeSeat === mySeat;
+  const isActiveSeat = (s: SeatIndex): boolean => activeSeat === s;
+  const turnLabel = useMemo((): string | null => {
+    if (activeSeat === null) return null;
+    if (activeSeat === mySeat) return 'Ваш ход';
+    return `Ход: ${seatNames[activeSeat] ?? '—'}`;
+  }, [activeSeat, mySeat, seatNames]);
   const interceptOpen = phase.kind === 'intercept-window';
   const eligibleNow = interceptOpen && phase.eligible.includes(mySeat as SeatIndex);
   const deadlineMs = interceptOpen ? phase.deadlineMs : 0;
-  const isActiveSeat = (s: SeatIndex): boolean =>
-    (phase.kind === 'lead' && phase.leader === s) ||
-    (phase.kind === 'follow' && phase.next === s) ||
-    (phase.kind === 'extra-round' && state.currentTrick?.extraRound?.nextToAsk === s);
 
   const submit = (a: Action): void => {
     onAction(a);
@@ -153,6 +158,12 @@ export function TableScreen({ state, seats, mySeat, onAction, onClaimIntercept, 
           </div>
         )}
       </div>
+
+      {turnLabel && (
+        <div className={`${styles.turnBanner} ${isMyTurn ? styles.turnBannerMine : ''}`}>
+          {turnLabel}
+        </div>
+      )}
 
       <div className={styles.trickArea}>
         <PlayedTrick
